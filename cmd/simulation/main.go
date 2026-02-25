@@ -1,57 +1,48 @@
 package main
 
 import (
-	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/ed25519"
-	"crypto/hkdf"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"slices"
 	"sync"
-	"time"
+
+	"github.com/artilugio0/seshador"
 )
 
-const hkdfUrlInfo = "seshador/v1/hkdf/info/url"
+const hkdfSecretIdInfo = "seshador/v1/hkdf/info/secret-id"
 const hkdfEncryptionKeyInfo = "seshador/v1/hkdf/info/encryption-key"
 
 func main() {
 	secret := "this is a secret string"
 
-	senderReceiverChan := make(chan []byte)
-	senderServerChan := make(chan []byte)
-	receiverServerChan := make(chan []byte)
+	ownerReceiverChan := make(chan []byte)
+	vaultChan := make(chan []byte)
+	vaultClient := &VaultClientFake{vaultChan}
 
 	var wg sync.WaitGroup
 	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
-		receiver(senderReceiverChan, receiverServerChan)
+		receiver(ownerReceiverChan, vaultClient)
 	}()
 
 	go func() {
 		defer wg.Done()
-		sender(secret, senderReceiverChan, senderServerChan)
+		owner(secret, ownerReceiverChan, vaultClient)
 	}()
 
 	go func() {
 		defer wg.Done()
-		server(senderServerChan, receiverServerChan)
+		vault(vaultChan)
 	}()
 
 	wg.Wait()
 }
 
-func receiver(sender chan []byte, server chan []byte) {
-	// Receiver creates 2 keys signs and sends values
-	sigPub, sigPriv, err := ed25519.GenerateKey(rand.Reader)
+func receiver(owner chan []byte, vaultClient seshador.VaultClient) {
+	_, sigPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)
 	}
@@ -62,224 +53,121 @@ func receiver(sender chan []byte, server chan []byte) {
 		panic(err)
 	}
 
-	recPub := recPriv.PublicKey()
+	rec := seshador.NewReceiver(recPriv, sigPriv)
+	initialMessage := rec.InitialMessage()
 
-	message1 := slices.Concat(recPub.Bytes(), sigPub)
-	fmt.Println("[Receiver] sending to sender:", base64.StdEncoding.EncodeToString(message1))
-	sender <- message1
+	fmt.Println("[Receiver] sending initial message to secret owner")
+	owner <- initialMessage
 
-	// Receive sender public key and server challenge
-	message2 := <-sender
-	senderPubBytes := message2[:32]
-	serverChallenge := message2[32:48]
+	msg := <-owner
+	if err := rec.ProcessOwnerMessage(msg); err != nil {
+		panic(err)
+	}
+	fmt.Println("[Receiver] received owner public key and vault challenge")
 
-	senderPub, err := curve.NewPublicKey(senderPubBytes)
+	fmt.Println("[Receiver] retrieving secret from vault")
+	plaintextSecret, err := rec.RetrieveSecret(vaultClient)
 	if err != nil {
 		panic(err)
 	}
 
-	sharedSecret, err := recPriv.ECDH(senderPub)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("[Receiver] computed shared secret:", hex.EncodeToString(sharedSecret))
-
-	urlKey, err := hkdf.Key(sha256.New, sharedSecret, nil, hkdfUrlInfo, 32)
-	if err != nil {
-		panic(err)
-	}
-
-	// Ask server for encrypted secret
-	fmt.Println("[Receiver] sending request to server to get encrypted secret: URL key:", base64.StdEncoding.EncodeToString(urlKey))
-	timestamp := time.Now().Format(time.RFC3339)
-	message3 := slices.Concat([]byte("retrieve"), urlKey, serverChallenge, []byte(timestamp))
-	sig1 := ed25519.Sign(sigPriv, message3)
-
-	server <- urlKey
-	server <- message3
-	server <- sig1
-
-	// Decrypt the ciphertext
-	ciphertext := <-server
-
-	// Strip nonce from ciphertext
-	encNonce := ciphertext[:12]
-	ciphertext = ciphertext[12:]
-
-	// Generate encryption key
-	encKey, err := hkdf.Key(sha256.New, sharedSecret, nil, hkdfEncryptionKeyInfo, 32)
-	if err != nil {
-		panic(err)
-	}
-
-	block, err := aes.NewCipher(encKey)
-	if err != nil {
-		panic(err)
-	}
-	aesGcm, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf(
-		"[Receiver] decrypting secret with encryption key '%s' and nonce '%s'\n",
-		hex.EncodeToString(encKey),
-		hex.EncodeToString(encNonce),
-	)
-
-	plaintext, err := aesGcm.Open(nil, encNonce, ciphertext, nil)
-	if err != nil {
-		panic(err)
-	}
-
-	recoveredSecret := string(plaintext)
-	fmt.Println("[Receiver] recovered secret:", recoveredSecret)
+	fmt.Println("[Receiver] plaintext secret:", string(plaintextSecret))
 }
 
-func sender(secret string, receiver chan []byte, server chan []byte) {
-	message1 := <-receiver
-	recPubBytes := message1[:32]
-	recSigPubBytes := message1[32:64]
-
+func owner(secret string, receiver chan []byte, vaultClient seshador.VaultClient) {
 	curve := ecdh.X25519()
-	recPub, err := curve.NewPublicKey(recPubBytes)
-	if err != nil {
-		panic(err)
-	}
-
 	sendPriv, err := curve.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)
 	}
 
-	sendPub := sendPriv.PublicKey()
+	owner := seshador.NewOwner(sendPriv)
 
-	sharedSecret, err := sendPriv.ECDH(recPub)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("[Sender] computed shared secret:", hex.EncodeToString(sharedSecret))
-
-	urlKey, err := hkdf.Key(sha256.New, sharedSecret, nil, hkdfUrlInfo, 32)
-	if err != nil {
+	messageFromReceiver := <-receiver
+	fmt.Println("[Owner] received initial message from receiver")
+	if err := owner.ProcessReceiverMessage(messageFromReceiver); err != nil {
 		panic(err)
 	}
 
-	encKey, err := hkdf.Key(sha256.New, sharedSecret, nil, hkdfEncryptionKeyInfo, 32)
-	if err != nil {
+	fmt.Println("[Owner] storing secret in vault")
+	if err := owner.StoreSecret([]byte(secret), vaultClient); err != nil {
 		panic(err)
 	}
 
-	encNonce := make([]byte, 12)
-	if _, err := io.ReadFull(rand.Reader, encNonce); err != nil {
-		panic(err)
-	}
+	messageToReceiver := owner.MessageToReceiver()
 
-	fmt.Printf(
-		"[Sender] encrypting secret with encryption key '%s' and nonce '%s'\n",
-		hex.EncodeToString(encKey),
-		hex.EncodeToString(encNonce),
-	)
-
-	aesBlock, err := aes.NewCipher(encKey)
-	if err != nil {
-		panic(err)
-	}
-	aesGcm, err := cipher.NewGCM(aesBlock)
-	if err != nil {
-		panic(err)
-	}
-
-	ciphertext := aesGcm.Seal(nil, encNonce, []byte(secret), nil)
-	// Prepend nonce to ciphertext
-	ciphertext = slices.Concat(encNonce, ciphertext)
-
-	fmt.Println("[Sender] sending encrypted secret to server. URL key:", base64.StdEncoding.EncodeToString(urlKey))
-	server <- urlKey
-	server <- recSigPubBytes
-	server <- ciphertext
-
-	challenge := <-server
-
-	message := slices.Concat(sendPub.Bytes(), challenge)
-	fmt.Println("[Sender] sending public key and challenge to receiver:", base64.StdEncoding.EncodeToString(message))
-	receiver <- message
+	fmt.Println("[Owner] sending public key and challenge to receiver")
+	receiver <- messageToReceiver
 }
 
-func server(sender chan []byte, receiver chan []byte) {
-	urlKey := <-sender
-	recSigPubBytes := <-sender
-	ciphertext := <-sender
+func vault(ioChan chan []byte) {
+	vault := seshador.NewVault(&KVS{map[string]*seshador.SecretEntry{}})
 
-	expiration := time.Now().Add(24 * time.Hour)
+	secretID := <-ioChan
+	recSigPubBytes := <-ioChan
+	ciphertext := <-ioChan
+	fmt.Println("[Vault] received a secret store request from owner")
 
-	challenge := make([]byte, 16)
-	if _, err := io.ReadFull(rand.Reader, challenge); err != nil {
+	challenge, err := vault.StoreSecret(secretID, recSigPubBytes, ciphertext)
+	if err != nil {
 		panic(err)
 	}
+	fmt.Println("[Vault] secret stored. Sending challenge to owner")
+	ioChan <- challenge
 
-	challengeHash := sha256.Sum256(challenge)
+	recSecretID := <-ioChan
+	recMessage := <-ioChan
+	recSig := <-ioChan
+	fmt.Println("[Vault] received a secret retrieve request from receiver")
 
-	fmt.Println("[Server] sending challenge to sender: ", base64.StdEncoding.EncodeToString(challenge))
-	sender <- challenge
-
-	urlKeyHash := sha256.Sum256(urlKey)
-	fmt.Println("[Server] received request to store encrypted secret. URL Key hash:", hex.EncodeToString(urlKeyHash[:]))
-
-	recUrlKey := <-receiver
-	recMessage := <-receiver
-	recSig := <-receiver
-
-	recUrlKeyHash := sha256.Sum256(recUrlKey)
-	fmt.Println("[Server] received request to read encrypted secret. URL Key hash:", hex.EncodeToString(recUrlKeyHash[:]))
-
-	if !bytes.Equal(recUrlKeyHash[:], urlKeyHash[:]) {
-		panic("invalid url key")
-	}
-
-	messageOp := recMessage[:8]
-	if !bytes.Equal(messageOp, []byte("retrieve")) {
-		panic("invalid message op")
-	}
-
-	messageUrlKey := recMessage[8:40]
-	if !bytes.Equal(messageUrlKey, urlKey) {
-		panic("invalid url key")
-	}
-
-	messageChallenge := recMessage[40:56]
-	messageChallengeHash := sha256.Sum256(messageChallenge)
-	if !bytes.Equal(messageChallengeHash[:], challengeHash[:]) {
-		panic("invalid challenge value")
-	}
-
-	messageTimestampStr := string(recMessage[56:])
-	timestamp, err := time.Parse(time.RFC3339, messageTimestampStr)
+	retrievedSecret, err := vault.RetrieveSecret(recSecretID, recMessage, recSig)
 	if err != nil {
 		panic(err)
 	}
 
-	min1Ago := time.Now().Add(time.Second * (-30))
-	if timestamp.Before(min1Ago) {
-		panic("invalid timestamp")
-	}
+	fmt.Println("[Vault] sending secret to receiver")
+	ioChan <- retrievedSecret
+}
 
-	recPub := ed25519.PublicKey(recSigPubBytes)
-	ok := ed25519.Verify(recPub, recMessage, recSig)
-	if !ok {
-		panic("invalid signature")
-	}
+type VaultClientFake struct {
+	vaultChan chan []byte
+}
 
-	if expiration.Before(time.Now()) {
-		panic("secret expired")
-	}
+func (vcf *VaultClientFake) RetrieveSecret(secretID, msg, sig []byte) ([]byte, error) {
+	vcf.vaultChan <- secretID
+	vcf.vaultChan <- msg
+	vcf.vaultChan <- sig
 
-	fmt.Println("[Server] request validated. Valid URL key, signature vefified and not expired")
+	secret := <-vcf.vaultChan
 
-	fmt.Println("[Server] challenge marked as used")
-	challenge = nil
-	receiver <- ciphertext
+	return secret, nil
+}
 
-	fmt.Println("[Server] encrypted secret deleted") // just a message, real implementation does mark it
-	ciphertext = nil
+func (vcf *VaultClientFake) StoreSecret(secretID, recPub, ciphertext []byte) ([]byte, error) {
+	vcf.vaultChan <- secretID
+	vcf.vaultChan <- recPub
+	vcf.vaultChan <- ciphertext
+
+	challenge := <-vcf.vaultChan
+
+	return challenge, nil
+}
+
+type KVS struct {
+	values map[string]*seshador.SecretEntry
+}
+
+func (kvs *KVS) Put(key []byte, value seshador.SecretEntry) error {
+	kvs.values[string(key)] = &value
+	return nil
+}
+
+func (kvs *KVS) Get(key []byte) (*seshador.SecretEntry, error) {
+	se := kvs.values[string(key)]
+	return se, nil
+}
+
+func (kvs *KVS) Delete(key []byte) error {
+	kvs.values[string(key)] = nil
+	return nil
 }
