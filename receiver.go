@@ -40,8 +40,8 @@ func (r *Receiver) InitialMessage() []byte {
 }
 
 func (r *Receiver) ProcessOwnerMessage(msg []byte) error {
-	ownerPubBytes := msg[:32]
-	vaultChallenge := msg[32:48]
+	ownerPubBytes := msg[:publicKeySize]
+	vaultChallenge := msg[publicKeySize : publicKeySize+vaultChallengeSize]
 
 	curve := ecdh.X25519()
 	ownerPub, err := curve.NewPublicKey(ownerPubBytes)
@@ -61,7 +61,7 @@ func (r *Receiver) ProcessOwnerMessage(msg []byte) error {
 }
 
 func (r *Receiver) RetrieveSecret(vaultClient VaultClient) ([]byte, error) {
-	secretID, err := hkdf.Key(sha256.New, r.sharedSecret, nil, hkdfSecretIdInfo, 32)
+	secretID, err := hkdf.Key(sha256.New, r.sharedSecret, nil, hkdfSecretIdInfo, secretIDSize)
 	if err != nil {
 		return nil, fmt.Errorf("could not derive secret id: %w", err)
 	}
@@ -75,10 +75,10 @@ func (r *Receiver) RetrieveSecret(vaultClient VaultClient) ([]byte, error) {
 		return nil, err
 	}
 
-	encNonce := encryptedSecret[:12]
-	ciphertext := encryptedSecret[12:]
+	encNonce := encryptedSecret[:encryptionNonceSize]
+	ciphertext := encryptedSecret[encryptionNonceSize:]
 
-	encKey, err := hkdf.Key(sha256.New, r.sharedSecret, nil, hkdfEncryptionKeyInfo, 32)
+	encKey, err := hkdf.Key(sha256.New, r.sharedSecret, nil, hkdfEncryptionKeyInfo, encryptionKeySize)
 	if err != nil {
 		return nil, fmt.Errorf("could not derive decryption key: %w", err)
 	}

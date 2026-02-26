@@ -12,6 +12,14 @@ import (
 	"slices"
 )
 
+const (
+	encryptionKeySize   int = 32
+	encryptionNonceSize int = 12
+	publicKeySize       int = 32
+	secretIDSize        int = 32
+	vaultChallengeSize  int = 16
+)
+
 type Owner struct {
 	dhPriv          *ecdh.PrivateKey
 	sharedSecret    []byte
@@ -28,8 +36,8 @@ func NewOwner(dhPriv *ecdh.PrivateKey) *Owner {
 }
 
 func (o *Owner) ProcessReceiverMessage(msg []byte) error {
-	recPubBytes := msg[:32]
-	o.receiverSigPub = msg[32:64]
+	recPubBytes := msg[:publicKeySize]
+	o.receiverSigPub = msg[publicKeySize : publicKeySize*2]
 
 	curve := ecdh.X25519()
 	recPub, err := curve.NewPublicKey(recPubBytes)
@@ -47,18 +55,18 @@ func (o *Owner) ProcessReceiverMessage(msg []byte) error {
 }
 
 func (o *Owner) StoreSecret(secret []byte, vaultClient VaultClient) error {
-	secretID, err := hkdf.Key(sha256.New, o.sharedSecret, nil, hkdfSecretIdInfo, 32)
+	secretID, err := hkdf.Key(sha256.New, o.sharedSecret, nil, hkdfSecretIdInfo, secretIDSize)
 	if err != nil {
 		return fmt.Errorf("could not derive secret id: %w", err)
 	}
 	o.secretID = secretID
 
-	encKey, err := hkdf.Key(sha256.New, o.sharedSecret, nil, hkdfEncryptionKeyInfo, 32)
+	encKey, err := hkdf.Key(sha256.New, o.sharedSecret, nil, hkdfEncryptionKeyInfo, encryptionKeySize)
 	if err != nil {
 		return fmt.Errorf("could not derive decryption key: %w", err)
 	}
 
-	o.encryptionNonce = make([]byte, 12)
+	o.encryptionNonce = make([]byte, encryptionNonceSize)
 	if _, err := io.ReadFull(rand.Reader, o.encryptionNonce); err != nil {
 		return fmt.Errorf("could not generate the encryption nonce: %w", err)
 	}

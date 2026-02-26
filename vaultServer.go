@@ -3,7 +3,15 @@ package seshador
 import (
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
+)
+
+const (
+	maxLengthStoreSecretInputSize int = (secretIDSize+publicKeySize+maxEncryptedSecretSize)*4/3 + 100 // +100 to account for json and rounding errors
+	maxEncryptedSecretSize        int = encryptionNonceSize + 4096 + 16                               // nonce + plaintext + tag
+	maxRetrieveMessageSize        int = 80
+	maxRetrieveSignatureSize      int = 64
 )
 
 type VaultServer struct {
@@ -28,6 +36,11 @@ func (vs *VaultServer) configureHandlers(vault *Vault) {
 func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		secretIDStr := req.PathValue("secretID")
+		if len(secretIDStr) > base64.StdEncoding.EncodedLen(secretIDSize) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		secretID, err := base64.StdEncoding.DecodeString(secretIDStr)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -40,6 +53,12 @@ func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		msgStr := msgList[0]
+
+		if len(msgStr) > base64.StdEncoding.EncodedLen(maxRetrieveMessageSize) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
 		msg, err := base64.StdEncoding.DecodeString(msgList[0])
 		if err != nil {
@@ -49,6 +68,12 @@ func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 
 		sigList := values["sig"]
 		if len(sigList) != 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		sigStr := sigList[0]
+
+		if len(sigStr) > base64.StdEncoding.EncodedLen(maxRetrieveSignatureSize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -82,13 +107,14 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
 
+		limitReader := io.LimitReader(req.Body, int64(maxLengthStoreSecretInputSize))
+
 		input := StoreSecretRequest{}
-		if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
+		if err := json.NewDecoder(limitReader).Decode(&input); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		// TODO: validate min max lengths
 		if input.SecretID == "" || input.EncryptedSecret == "" || input.ReceiverPublicKey == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
