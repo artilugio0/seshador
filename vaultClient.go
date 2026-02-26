@@ -1,6 +1,7 @@
 package seshador
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,11 +16,17 @@ type VaultClient interface {
 }
 
 type VaultClientHTTP struct {
-	BaseURL string
+	baseURL string
+}
+
+func NewVaultClientHTTP(baseURL string) *VaultClientHTTP {
+	return &VaultClientHTTP{
+		baseURL: baseURL,
+	}
 }
 
 func (vch *VaultClientHTTP) RetrieveSecret(secretID, msg, sig []byte) ([]byte, error) {
-	secretURL, err := url.Parse(vch.BaseURL)
+	secretURL, err := url.Parse(vch.baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid vault base URL: %w", err)
 	}
@@ -41,14 +48,57 @@ func (vch *VaultClientHTTP) RetrieveSecret(secretID, msg, sig []byte) ([]byte, e
 	}
 	defer res.Body.Close()
 
-	vaultResp := VaultResponse{}
+	vaultResp := RetrieveSecretResponse{}
 	if err := json.NewDecoder(res.Body).Decode(&vaultResp); err != nil {
 		return nil, fmt.Errorf("could not read vault response: %w", err)
 	}
 
-	return vaultResp.EncryptedSecret, nil
+	encryptedSecret, err := base64.StdEncoding.DecodeString(vaultResp.EncryptedSecret)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode encrypted secret: %v", err)
+	}
+
+	return encryptedSecret, nil
 }
 
-type VaultResponse struct {
-	EncryptedSecret []byte
+func (vch *VaultClientHTTP) StoreSecret(secretID, receiverSigPub, encryptedSecret []byte) ([]byte, error) {
+	secretURL, err := url.Parse(vch.baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid vault base URL: %w", err)
+	}
+	secretURL = secretURL.JoinPath("secrets")
+
+	reqBody := StoreSecretRequest{
+		SecretID:          base64.StdEncoding.EncodeToString(secretID),
+		ReceiverPublicKey: base64.StdEncoding.EncodeToString(receiverSigPub),
+		EncryptedSecret:   base64.StdEncoding.EncodeToString(encryptedSecret),
+	}
+
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal request body: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", secretURL.String(), bytes.NewReader(reqBodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("could not create store secret request: %v", err)
+	}
+
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("store secret request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody := StoreSecretResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		return nil, fmt.Errorf("could not read vault response: %w", err)
+	}
+
+	challenge, err := base64.StdEncoding.DecodeString(respBody.Challenge)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode vault challenge value: %v", err)
+	}
+
+	return challenge, nil
 }

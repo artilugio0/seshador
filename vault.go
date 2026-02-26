@@ -24,6 +24,8 @@ func NewVault(kvs KeyValueStore) *Vault {
 }
 
 func (v *Vault) StoreSecret(secretID, recPub, encryptedSecret []byte) ([]byte, error) {
+	// TODO: make sure the secretID is not currently used
+
 	challenge := make([]byte, 16)
 	if _, err := io.ReadFull(rand.Reader, challenge); err != nil {
 		panic(err)
