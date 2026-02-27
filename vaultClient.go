@@ -30,6 +30,11 @@ func NewVaultClientHTTP(baseURL string) *VaultClientHTTP {
 	}
 }
 
+func (vch *VaultClientHTTP) WithTransport(transport *http.Transport) *VaultClientHTTP {
+	vch.httpClient.Transport = transport
+	return vch
+}
+
 func (vch *VaultClientHTTP) RetrieveSecret(secretID, msg, sig []byte) ([]byte, error) {
 	secretURL, err := url.Parse(vch.baseURL)
 	if err != nil {

@@ -9,7 +9,7 @@ const (
 func newSeshadorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "seshador",
-		Short: "seshador -- Secrets Sharting Done Right",
+		Short: "seshador — Secrets Sharting Done Right",
 		Long: `seshador is a tool that helps with sharing secrets,
 in a secure way by encrypting the secrets with AES-GCM using
 keys derived from ephemeral Diffie-Hellman key exchange.

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/artilugio0/seshador"
@@ -14,12 +15,18 @@ import (
 )
 
 const (
-	receiveVaultURLDefault = ""
+	receiveInsecureNoTLSDefault         = false
+	receiveTLSCACertDefault             = ""
+	receiveTLSInsecureSkipVerifyDefault = false
+	receiveVaultURLDefault              = ""
 )
 
 func newReceiveCommand() *cobra.Command {
 	var (
-		vaultURL string
+		insecureNoTLS         bool
+		tlsCACert             string
+		tlsInsecureSkipVerify bool
+		vaultURL              string
 	)
 
 	cmd := &cobra.Command{
@@ -27,6 +34,17 @@ func newReceiveCommand() *cobra.Command {
 		Short: "receive a secret",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			pVaultURL, err := url.Parse(vaultURL)
+			if err != nil {
+				return err
+			}
+
+			if pVaultURL.Scheme != "https" && !insecureNoTLS {
+				return fmt.Errorf("The vault URL scheme is '%s', but TLS is required by default. "+
+					"If this was not a mistake, use the --insecure-no-tls for plaintext HTTP (not recommended)",
+					pVaultURL.Scheme)
+			}
+
 			curve := ecdh.X25519()
 			dhPriv, err := curve.GenerateKey(rand.Reader)
 			if err != nil {
@@ -61,7 +79,14 @@ func newReceiveCommand() *cobra.Command {
 				return err
 			}
 
-			vaultClient := seshador.NewVaultClientHTTP(vaultURL)
+			transport, err := newHTTPTransport(tlsCACert, tlsInsecureSkipVerify)
+			if err != nil {
+				return err
+			}
+
+			vaultClient := seshador.NewVaultClientHTTP(vaultURL).
+				WithTransport(transport)
+
 			secret, err := receiver.RetrieveSecret(vaultClient)
 			if err != nil {
 				return err
@@ -77,7 +102,11 @@ func newReceiveCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&insecureNoTLS, "insecure-no-tls", shareInsecureNoTLSDefault, "Do not use TLS for the communication with the vault server — INSECURE")
+	cmd.Flags().BoolVar(&tlsInsecureSkipVerify, "tls-insecure-skip-verify", receiveTLSInsecureSkipVerifyDefault, "Skip server certificate verification — INSECURE")
+	cmd.Flags().StringVar(&tlsCACert, "tls-ca-cert", receiveTLSCACertDefault, "Custom CA certificate file (PEM)")
 	cmd.Flags().StringVarP(&vaultURL, "vault-url", "u", receiveVaultURLDefault, "Vault server URL")
+
 	if err := cmd.MarkFlagRequired("vault-url"); err != nil {
 		panic(err)
 	}

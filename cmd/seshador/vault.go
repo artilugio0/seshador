@@ -11,12 +11,15 @@ import (
 )
 
 const (
-	vaultSeverAddrDefault = ":8080"
+	vaultSeverAddrDefault = ":8443"
 )
 
 func newVaultCommand() *cobra.Command {
 	var (
-		serverAddr string
+		serverAddr    string
+		tlsCert       string
+		tlsKey        string
+		insecureNoTLS bool
 	)
 
 	cmd := &cobra.Command{
@@ -27,16 +30,25 @@ func newVaultCommand() *cobra.Command {
 			vault := seshador.NewVault(newKVS())
 			vaultServer := seshador.NewVaultServer(vault)
 
-			log.Printf("Vault server running on %s", serverAddr)
-			if err := http.ListenAndServe(serverAddr, vaultServer); err != nil {
-				return fmt.Errorf("server execution ended: %v", err)
+			if !insecureNoTLS {
+				if tlsCert == "" || tlsKey == "" {
+					return fmt.Errorf("TLS is required by default. Provide --tls-cert and --tls-key, or use --insecure-no-tls for plaintext HTTP (not recommended)")
+				}
+				log.Printf("Vault server running on %s", serverAddr)
+				return http.ListenAndServeTLS(serverAddr, tlsCert, tlsKey, vaultServer)
 			}
 
-			return nil
+			// Insecure mode
+			log.Println("WARNING: Running WITHOUT TLS — all communication is plaintext and unauthenticated!")
+			log.Printf("Vault server running on %s", serverAddr)
+			return http.ListenAndServe(serverAddr, vaultServer)
 		},
 	}
 
 	cmd.Flags().StringVarP(&serverAddr, "listen", "l", vaultSeverAddrDefault, "Server address")
+	cmd.Flags().StringVar(&tlsCert, "tls-cert", "", "Path to TLS certificate file (PEM)")
+	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "Path to TLS private key file (PEM)")
+	cmd.Flags().BoolVar(&insecureNoTLS, "insecure-no-tls", false, "Run without TLS — INSECURE")
 
 	return cmd
 }
