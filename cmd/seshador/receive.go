@@ -61,7 +61,7 @@ func newReceiveCommand() *cobra.Command {
 			msg := receiver.InitialMessage()
 
 			fmt.Println("Send the following code to the owner of the secret (this code is not secret, anyone can see it):")
-			fmt.Println(base64.StdEncoding.EncodeToString(msg))
+			fmt.Println(base64.URLEncoding.EncodeToString(msg))
 
 			fmt.Print("\nEnter the code the owner of the secret sent you: ")
 			reader := bufio.NewReader(os.Stdin)
@@ -70,7 +70,7 @@ func newReceiveCommand() *cobra.Command {
 				return err
 			}
 
-			ownerMsg, err := base64.StdEncoding.DecodeString(ownerMsgStr)
+			ownerMsg, err := base64.URLEncoding.DecodeString(ownerMsgStr)
 			if err != nil {
 				return err
 			}

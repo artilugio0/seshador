@@ -93,12 +93,12 @@ func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 		}
 
 		response := RetrieveSecretResponse{
-			EncryptedSecret: base64.StdEncoding.EncodeToString(secret),
+			EncryptedSecret: base64.URLEncoding.EncodeToString(secret),
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	}
@@ -116,34 +116,34 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 			return
 		}
 
-		if len(input.SecretID) != base64.StdEncoding.EncodedLen(secretIDSize) {
+		if len(input.SecretID) != base64.URLEncoding.EncodedLen(secretIDSize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		if len(input.EncryptedSecret) < base64.StdEncoding.EncodedLen(encryptionNonceSize+16) {
+		if len(input.EncryptedSecret) < base64.URLEncoding.EncodedLen(encryptionNonceSize+16) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		if len(input.ReceiverPublicKey) != base64.StdEncoding.EncodedLen(ed25519.PublicKeySize) {
+		if len(input.ReceiverPublicKey) != base64.URLEncoding.EncodedLen(ed25519.PublicKeySize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		secretID, err := base64.StdEncoding.DecodeString(input.SecretID)
+		secretID, err := base64.URLEncoding.DecodeString(input.SecretID)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		encryptedSecret, err := base64.StdEncoding.DecodeString(input.EncryptedSecret)
+		encryptedSecret, err := base64.URLEncoding.DecodeString(input.EncryptedSecret)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		receiverPublicKey, err := base64.StdEncoding.DecodeString(input.ReceiverPublicKey)
+		receiverPublicKey, err := base64.URLEncoding.DecodeString(input.ReceiverPublicKey)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -157,12 +157,12 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 		}
 
 		response := StoreSecretResponse{
-			Challenge: base64.StdEncoding.EncodeToString(challenge),
+			Challenge: base64.URLEncoding.EncodeToString(challenge),
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	}

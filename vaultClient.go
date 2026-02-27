@@ -68,7 +68,7 @@ func (vch *VaultClientHTTP) RetrieveSecret(secretID, msg, sig []byte) ([]byte, e
 		return nil, fmt.Errorf("could not read vault response: %w", err)
 	}
 
-	encryptedSecret, err := base64.StdEncoding.DecodeString(vaultResp.EncryptedSecret)
+	encryptedSecret, err := base64.URLEncoding.DecodeString(vaultResp.EncryptedSecret)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode encrypted secret: %v", err)
 	}
@@ -84,9 +84,9 @@ func (vch *VaultClientHTTP) StoreSecret(secretID, receiverSigPub, encryptedSecre
 	secretURL = secretURL.JoinPath("secrets")
 
 	reqBody := StoreSecretRequest{
-		SecretID:          base64.StdEncoding.EncodeToString(secretID),
-		ReceiverPublicKey: base64.StdEncoding.EncodeToString(receiverSigPub),
-		EncryptedSecret:   base64.StdEncoding.EncodeToString(encryptedSecret),
+		SecretID:          base64.URLEncoding.EncodeToString(secretID),
+		ReceiverPublicKey: base64.URLEncoding.EncodeToString(receiverSigPub),
+		EncryptedSecret:   base64.URLEncoding.EncodeToString(encryptedSecret),
 	}
 
 	reqBodyBytes, err := json.Marshal(reqBody)
@@ -110,7 +110,7 @@ func (vch *VaultClientHTTP) StoreSecret(secretID, receiverSigPub, encryptedSecre
 		return nil, fmt.Errorf("could not read vault response: %w", err)
 	}
 
-	challenge, err := base64.StdEncoding.DecodeString(respBody.Challenge)
+	challenge, err := base64.URLEncoding.DecodeString(respBody.Challenge)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode vault challenge value: %v", err)
 	}

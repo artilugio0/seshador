@@ -57,7 +57,7 @@ func newShareCommand() *cobra.Command {
 				return err
 			}
 
-			receiverMsg, err := base64.StdEncoding.DecodeString(receiverMsgStr)
+			receiverMsg, err := base64.URLEncoding.DecodeString(receiverMsgStr)
 			if err != nil {
 				return err
 			}
@@ -88,7 +88,7 @@ func newShareCommand() *cobra.Command {
 
 			msg := owner.MessageToReceiver()
 			fmt.Println("Send the following code to the secret receiver (it is not secret, anyone can see it):")
-			fmt.Println(base64.StdEncoding.EncodeToString(msg))
+			fmt.Println(base64.URLEncoding.EncodeToString(msg))
 
 			return nil
 		},
