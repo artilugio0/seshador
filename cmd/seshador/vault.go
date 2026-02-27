@@ -1,25 +1,31 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
+	"strings"
 
 	"github.com/artilugio0/seshador"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/spf13/cobra"
 )
 
 const (
 	vaultSeverAddrDefault = ":8443"
+	vaultStorageDefault   = "memory://"
 )
 
 func newVaultCommand() *cobra.Command {
 	var (
+		insecureNoTLS bool
 		serverAddr    string
+		storage       string
 		tlsCert       string
 		tlsKey        string
-		insecureNoTLS bool
 	)
 
 	cmd := &cobra.Command{
@@ -27,7 +33,39 @@ func newVaultCommand() *cobra.Command {
 		Short: "run a vault server",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			vault := seshador.NewVault(newKVS())
+			var kvs seshador.KeyValueStore
+
+			if storage == "" || storage == "memory://" || storage == "memory" {
+				kvs = seshador.NewKVSMemory()
+			} else if strings.HasPrefix(storage, "dynamodb://") {
+				rest := strings.TrimPrefix(storage, "dynamodb://")
+				parts := strings.SplitN(rest, "/", 2)
+				if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+					return fmt.Errorf("invalid DynamoDB URI format. Expected: dynamodb://region/table-name")
+				}
+
+				region := parts[0]
+				tableName := parts[1]
+
+				cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+				if err != nil {
+					return fmt.Errorf("failed to load AWS config for region %s: %w", region, err)
+				}
+
+				dynamoDBClient := dynamodb.NewFromConfig(cfg, func(opts *dynamodb.Options) {
+					if tableName == "local-development" {
+						opts.BaseEndpoint = aws.String("http://localhost:8000")
+					}
+				})
+
+				kvs = seshador.NewKVSDynamoDB(dynamoDBClient, tableName)
+
+				log.Printf("Using DynamoDB storage: %s", storage)
+			} else {
+				return fmt.Errorf("unsupported storage URI scheme: %s", storage)
+			}
+
+			vault := seshador.NewVault(kvs)
 			vaultServer := seshador.NewVaultServer(vault)
 
 			if !insecureNoTLS {
@@ -45,46 +83,11 @@ func newVaultCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&storage, "storage", vaultStorageDefault, "Storage backend URI (memory:// or dynamodb://region/table)")
 	cmd.Flags().StringVarP(&serverAddr, "listen", "l", vaultSeverAddrDefault, "Server address")
 	cmd.Flags().StringVar(&tlsCert, "tls-cert", "", "Path to TLS certificate file (PEM)")
 	cmd.Flags().StringVar(&tlsKey, "tls-key", "", "Path to TLS private key file (PEM)")
 	cmd.Flags().BoolVar(&insecureNoTLS, "insecure-no-tls", false, "Run without TLS — INSECURE")
 
 	return cmd
-}
-
-type KVS struct {
-	mutex  sync.Mutex
-	values map[string]*seshador.SecretEntry
-}
-
-func newKVS() *KVS {
-	return &KVS{
-		mutex:  sync.Mutex{},
-		values: map[string]*seshador.SecretEntry{},
-	}
-}
-
-func (kvs *KVS) Put(key []byte, value seshador.SecretEntry) error {
-	kvs.mutex.Lock()
-	defer kvs.mutex.Unlock()
-
-	kvs.values[string(key)] = &value
-	return nil
-}
-
-func (kvs *KVS) Get(key []byte) (*seshador.SecretEntry, error) {
-	kvs.mutex.Lock()
-	defer kvs.mutex.Unlock()
-
-	se := kvs.values[string(key)]
-	return se, nil
-}
-
-func (kvs *KVS) Delete(key []byte) error {
-	kvs.mutex.Lock()
-	defer kvs.mutex.Unlock()
-
-	delete(kvs.values, string(key))
-	return nil
 }

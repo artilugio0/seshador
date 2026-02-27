@@ -121,11 +121,3 @@ type SecretEntry struct {
 	EncryptedSecret []byte
 	ReceiverPubKey  []byte
 }
-
-type KeyValueStore interface {
-	Put(key []byte, value SecretEntry) error
-
-	Get(key []byte) (*SecretEntry, error)
-
-	Delete(key []byte) error
-}
