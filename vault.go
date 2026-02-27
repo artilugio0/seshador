@@ -35,7 +35,7 @@ func (v *Vault) StoreSecret(secretID, recPub, encryptedSecret []byte) ([]byte, e
 
 	challenge := make([]byte, vaultChallengeSize)
 	if _, err := io.ReadFull(rand.Reader, challenge); err != nil {
-		panic(err)
+		return nil, fmt.Errorf("could not create random challenge value: %w", err)
 	}
 
 	challengeHash := sha256.Sum256(challenge)
@@ -94,8 +94,9 @@ func (v *Vault) RetrieveSecret(secretID, msg, sig []byte) ([]byte, error) {
 		return nil, errors.New("invalid timestamp in message")
 	}
 
-	min1Ago := time.Now().Add(time.Second * (-30))
-	if timestamp.Before(min1Ago) {
+	secs30Ago := time.Now().Add(time.Second * (-30))
+	secs30Ahead := time.Now().Add(time.Second * 30)
+	if timestamp.Before(secs30Ago) || timestamp.After(secs30Ahead) {
 		return nil, errors.New("invalid timestamp")
 	}
 

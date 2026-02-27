@@ -73,6 +73,6 @@ func (kvs *KVS) Delete(key []byte) error {
 	kvs.mutex.Lock()
 	defer kvs.mutex.Unlock()
 
-	kvs.values[string(key)] = nil
+	delete(kvs.values, string(key))
 	return nil
 }

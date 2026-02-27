@@ -1,6 +1,7 @@
 package seshador
 
 import (
+	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -36,12 +37,12 @@ func (vs *VaultServer) configureHandlers(vault *Vault) {
 func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		secretIDStr := req.PathValue("secretID")
-		if len(secretIDStr) > base64.StdEncoding.EncodedLen(secretIDSize) {
+		if len(secretIDStr) > base64.URLEncoding.EncodedLen(secretIDSize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		secretID, err := base64.StdEncoding.DecodeString(secretIDStr)
+		secretID, err := base64.URLEncoding.DecodeString(secretIDStr)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -55,12 +56,12 @@ func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 		}
 		msgStr := msgList[0]
 
-		if len(msgStr) > base64.StdEncoding.EncodedLen(maxRetrieveMessageSize) {
+		if len(msgStr) > base64.URLEncoding.EncodedLen(maxRetrieveMessageSize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		msg, err := base64.StdEncoding.DecodeString(msgList[0])
+		msg, err := base64.URLEncoding.DecodeString(msgList[0])
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -73,12 +74,12 @@ func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 		}
 		sigStr := sigList[0]
 
-		if len(sigStr) > base64.StdEncoding.EncodedLen(maxRetrieveSignatureSize) {
+		if len(sigStr) > base64.URLEncoding.EncodedLen(maxRetrieveSignatureSize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		sig, err := base64.StdEncoding.DecodeString(sigList[0])
+		sig, err := base64.URLEncoding.DecodeString(sigList[0])
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -115,7 +116,17 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 			return
 		}
 
-		if input.SecretID == "" || input.EncryptedSecret == "" || input.ReceiverPublicKey == "" {
+		if len(input.SecretID) != base64.StdEncoding.EncodedLen(secretIDSize) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if len(input.EncryptedSecret) < base64.StdEncoding.EncodedLen(encryptionNonceSize+16) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if len(input.ReceiverPublicKey) != base64.StdEncoding.EncodedLen(ed25519.PublicKeySize) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

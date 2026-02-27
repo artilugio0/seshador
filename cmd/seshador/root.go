@@ -2,6 +2,10 @@ package main
 
 import "github.com/spf13/cobra"
 
+const (
+	version = "v0.1.0"
+)
+
 func newSeshadorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "seshador",
@@ -22,5 +26,6 @@ executed with this same CLI:
 	cmd.AddCommand(newReceiveCommand())
 	cmd.AddCommand(newVaultCommand())
 
+	cmd.Version = version
 	return cmd
 }
