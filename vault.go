@@ -13,8 +13,7 @@ import (
 )
 
 type Vault struct {
-	kvs            KeyValueStore
-	receiverPubKey *ecdh.PublicKey
+	kvs KeyValueStore
 }
 
 func NewVault(kvs KeyValueStore) *Vault {
