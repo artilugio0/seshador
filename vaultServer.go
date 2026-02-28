@@ -30,6 +30,8 @@ func NewVaultServer(vault *Vault) *VaultServer {
 }
 
 func (vs *VaultServer) configureHandlers(vault *Vault) {
+	vs.mux.HandleFunc("GET /ping", handlerPing())
+
 	vs.mux.HandleFunc("GET /secrets/{secretID}", handlerSecretRetrieve(vault))
 	vs.mux.HandleFunc("POST /secrets", handlerSecretStore(vault))
 }
@@ -165,6 +167,12 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			return
 		}
+	}
+}
+
+func handlerPing() http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
