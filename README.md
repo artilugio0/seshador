@@ -144,6 +144,9 @@ seshador share "my-very-secret-password" --vault-url https://your-vault:8443
 # Secret is printed to stdout
 ```
 
+## Online Vault Server
+You can use a public version of the Vault Server using this URL: [https://h7b3lcyzrrjhylfjvcno2cr3xa0azkvb.lambda-url.us-east-1.on.aws](https://h7b3lcyzrrjhylfjvcno2cr3xa0azkvb.lambda-url.us-east-1.on.aws)
+
 ## License
 
 MIT

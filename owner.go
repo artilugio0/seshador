@@ -37,7 +37,7 @@ func NewOwner(dhPriv *ecdh.PrivateKey) *Owner {
 }
 
 func (o *Owner) ProcessReceiverMessage(msg []byte) error {
-	if len(msg) < publicKeySize*2 {
+	if len(msg) != publicKeySize*2 {
 		return errors.New("invalid message length")
 	}
 	recPubBytes := msg[:publicKeySize]

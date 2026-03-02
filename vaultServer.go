@@ -2,9 +2,11 @@ package seshador
 
 import (
 	"crypto/ed25519"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"net/http"
 )
 
@@ -14,6 +16,9 @@ const (
 	maxRetrieveMessageSize        int = 80
 	maxRetrieveSignatureSize      int = 64
 )
+
+//go:embed wasm/*
+var webContent embed.FS
 
 type VaultServer struct {
 	mux *http.ServeMux
@@ -30,6 +35,7 @@ func NewVaultServer(vault *Vault) *VaultServer {
 }
 
 func (vs *VaultServer) configureHandlers(vault *Vault) {
+	vs.mux.HandleFunc("GET /", handlerWeb())
 	vs.mux.HandleFunc("GET /ping", handlerPing())
 
 	vs.mux.HandleFunc("GET /secrets/{secretID}", handlerSecretRetrieve(vault))
@@ -168,6 +174,14 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 			return
 		}
 	}
+}
+
+func handlerWeb() http.HandlerFunc {
+	subFS, err := fs.Sub(webContent, "wasm")
+	if err != nil {
+		panic(err)
+	}
+	return http.FileServer(http.FS(subFS)).ServeHTTP
 }
 
 func handlerPing() http.HandlerFunc {
