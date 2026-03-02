@@ -7,6 +7,7 @@ import (
 	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -36,6 +37,9 @@ func NewOwner(dhPriv *ecdh.PrivateKey) *Owner {
 }
 
 func (o *Owner) ProcessReceiverMessage(msg []byte) error {
+	if len(msg) < publicKeySize*2 {
+		return errors.New("invalid message length")
+	}
 	recPubBytes := msg[:publicKeySize]
 	o.receiverSigPub = msg[publicKeySize : publicKeySize*2]
 

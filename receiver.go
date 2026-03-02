@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"crypto/hkdf"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -40,6 +41,10 @@ func (r *Receiver) InitialMessage() []byte {
 }
 
 func (r *Receiver) ProcessOwnerMessage(msg []byte) error {
+	if len(msg) != publicKeySize+vaultChallengeSize {
+		return errors.New("invalid message length")
+	}
+
 	ownerPubBytes := msg[:publicKeySize]
 	vaultChallenge := msg[publicKeySize : publicKeySize+vaultChallengeSize]
 
