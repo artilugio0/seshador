@@ -17,7 +17,7 @@ const (
 	maxRetrieveSignatureSize      int = 64
 )
 
-//go:embed wasm/*
+//go:embed static/*
 var webContent embed.FS
 
 type VaultServer struct {
@@ -42,8 +42,18 @@ func (vs *VaultServer) configureHandlers(vault *Vault) {
 	vs.mux.HandleFunc("POST /secrets", handlerSecretStore(vault))
 }
 
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func handlerSecretRetrieve(vault *Vault) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		secretIDStr := req.PathValue("secretID")
 		if len(secretIDStr) > base64.URLEncoding.EncodedLen(secretIDSize) {
 			w.WriteHeader(http.StatusBadRequest)
@@ -177,11 +187,15 @@ func handlerSecretStore(vault *Vault) http.HandlerFunc {
 }
 
 func handlerWeb() http.HandlerFunc {
-	subFS, err := fs.Sub(webContent, "wasm")
+	subFS, err := fs.Sub(webContent, "static")
 	if err != nil {
 		panic(err)
 	}
-	return http.FileServer(http.FS(subFS)).ServeHTTP
+	fileServer := http.FileServer(http.FS(subFS))
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		fileServer.ServeHTTP(w, r)
+	}
 }
 
 func handlerPing() http.HandlerFunc {
@@ -191,7 +205,7 @@ func handlerPing() http.HandlerFunc {
 }
 
 func (vs *VaultServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	vs.mux.ServeHTTP(w, req)
+	securityHeadersMiddleware(vs.mux).ServeHTTP(w, req)
 }
 
 type RetrieveSecretResponse struct {

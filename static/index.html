@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seshador</title>
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --border: #d0d0d0;
+      --text: #1a1a1a;
+      --text-muted: #666666;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f0f;
+        --surface: #1a1a1a;
+        --border: #333333;
+        --text: #e8e8e8;
+        --text-muted: #999999;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --danger: #f87171;
+        --success: #4ade80;
+        --shadow: 0 1px 3px rgba(0,0,0,.4);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 560px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: .25rem;
+    }
+    .tagline {
+      color: var(--text-muted);
+      font-size: .9rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .card + .card { margin-top: 1rem; }
+
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    h3 {
+      font-size: .95rem;
+      font-weight: 600;
+      margin-bottom: .5rem;
+    }
+
+    label {
+      display: block;
+      font-size: .875rem;
+      font-weight: 500;
+      margin-bottom: .35rem;
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .6rem .75rem;
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      font-size: .8rem;
+      resize: vertical;
+      line-break: anywhere;
+    }
+    textarea:focus, input[type="text"]:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+    }
+
+    .field { margin-bottom: 1rem; }
+    .field:last-child { margin-bottom: 0; }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius);
+      padding: .6rem 1.2rem;
+      font-size: .9rem;
+      font-weight: 500;
+      transition: background .15s, opacity .15s;
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover:not(:disabled) { background: var(--border); }
+
+    .btn-row {
+      display: flex;
+      gap: .75rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-big {
+      width: 100%;
+      padding: .9rem;
+      font-size: 1rem;
+    }
+    .btn-big + .btn-big { margin-top: .75rem; }
+
+    .code-box {
+      display: flex;
+      gap: .5rem;
+      align-items: flex-start;
+    }
+    .code-box textarea {
+      flex: 1;
+      min-height: 70px;
+    }
+    .copy-btn {
+      flex-shrink: 0;
+      padding: .5rem .9rem;
+      font-size: .8rem;
+    }
+
+    .notice {
+      font-size: .82rem;
+      color: var(--text-muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .6rem .85rem;
+      margin-top: .75rem;
+    }
+    .notice.warning {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .status {
+      font-size: .85rem;
+      color: var(--text-muted);
+      margin-top: .5rem;
+      min-height: 1.2em;
+    }
+    .status.error { color: var(--danger); }
+    .status.success { color: var(--success); }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: .85rem;
+      color: var(--accent);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: .4rem;
+    }
+
+    /* Screen/Step visibility */
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .step { display: none; }
+    .step.active { display: block; }
+
+    #screen-error .card { border-color: var(--danger); }
+    #screen-error h2 { color: var(--danger); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Error screen (shown if Web Crypto unavailable) -->
+  <div id="screen-error" class="screen">
+    <div class="card">
+      <h2>Browser Not Supported</h2>
+      <p style="font-size:.9rem;line-height:1.5;margin-top:.5rem">
+        Seshador requires the Web Crypto API and a secure context (HTTPS or localhost).<br><br>
+        Please use a modern browser: Chrome 113+, Firefox 130+, or Safari 17+, served over HTTPS.
+      </p>
+    </div>
+  </div>
+
+  <!-- Landing screen -->
+  <div id="screen-landing" class="screen">
+    <h1>Seshador</h1>
+    <p class="tagline">End-to-end encrypted one-time secret sharing</p>
+    <button class="btn-primary btn-big" id="btn-go-share">Share a Secret</button>
+    <button class="btn-secondary btn-big" id="btn-go-receive">Receive a Secret</button>
+  </div>
+
+  <!-- Share screen -->
+  <div id="screen-share" class="screen">
+    <button class="back-link" id="share-back">← Back</button>
+
+    <!-- Share step 1: enter receiver code + secret -->
+    <div id="share-step-1" class="step">
+      <div class="card">
+        <h2>Share a Secret</h2>
+        <div class="field">
+          <label for="share-receiver-code">Receiver's code</label>
+          <textarea id="share-receiver-code" rows="3" placeholder="Paste the code from the receiver…"></textarea>
+        </div>
+        <div class="field">
+          <label for="share-secret-text">Secret</label>
+          <textarea id="share-secret-text" rows="4" placeholder="Enter the secret text to share…"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-share-submit">Share</button>
+        </div>
+        <div class="status" id="share-status"></div>
+      </div>
+    </div>
+
+    <!-- Share step 2: show owner code -->
+    <div id="share-step-2" class="step">
+      <div class="card">
+        <h2>Secret Stored</h2>
+        <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:1rem">
+          Send this code to the receiver. They will use it to retrieve the secret.
+        </p>
+        <div class="field">
+          <label>Your code for the receiver</label>
+          <div class="code-box">
+            <textarea id="share-owner-code" rows="3" readonly></textarea>
+            <button class="btn-secondary copy-btn" data-copy="share-owner-code">Copy</button>
+          </div>
+        </div>
+        <div class="notice">
+          This code can only be used once. The secret will be deleted after retrieval.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receive screen -->
+  <div id="screen-receive" class="screen">
+    <button class="back-link" id="receive-back">← Back</button>
+
+    <!-- Receive step 1: show initial receiver code -->
+    <div id="receive-step-1" class="step">
+      <div class="card">
+        <h2>Receive a Secret</h2>
+        <p style="font-size:.875rem;color:var(--text-muted);margin-bottom:1rem">
+          Share this code with whoever wants to send you a secret.
+        </p>
+        <div class="field">
+          <label>Your receiver code</label>
+          <div class="code-box">
+            <textarea id="receive-initial-code" rows="3" readonly></textarea>
+            <button class="btn-secondary copy-btn" data-copy="receive-initial-code">Copy</button>
+          </div>
+        </div>
+        <div class="notice">
+          Keep this page open. Your keys are stored in memory and will be lost if you navigate away.
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-receive-next">I have the owner's code →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Receive step 2: paste owner code + retrieve -->
+    <div id="receive-step-2" class="step">
+      <div class="card">
+        <h2>Enter Owner's Code</h2>
+        <div class="field">
+          <label for="receive-owner-code">Owner's code</label>
+          <textarea id="receive-owner-code" rows="3" placeholder="Paste the code from the owner…"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary" id="btn-receive-back2">← Back</button>
+          <button class="btn-primary" id="btn-receive-submit">Retrieve Secret</button>
+        </div>
+        <div class="status" id="receive-status"></div>
+      </div>
+    </div>
+
+    <!-- Receive step 3: show decrypted secret -->
+    <div id="receive-step-3" class="step">
+      <div class="card">
+        <h2>Secret Retrieved</h2>
+        <div class="field">
+          <label>Secret</label>
+          <div class="code-box">
+            <textarea id="receive-secret-text" rows="4" readonly></textarea>
+            <button class="btn-secondary copy-btn" data-copy="receive-secret-text">Copy</button>
+          </div>
+        </div>
+        <div class="notice warning">
+          Warning: This secret has been deleted from the vault. Copy it now — it cannot be retrieved again.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .container -->
+
+<script type="module">
+'use strict';
+
+// ── A. Encoding utilities ─────────────────────────────────────────────────────
+
+function b64Encode(bytes) {
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  // base64 → base64url (keep padding)
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function b64Decode(str) {
+  // base64url → base64
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function concatBytes(...arrays) {
+  const total = arrays.reduce((sum, a) => sum + a.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const a of arrays) { out.set(a, off); off += a.length; }
+  return out;
+}
+
+// ── B. Web Crypto wrappers ────────────────────────────────────────────────────
+
+async function generateX25519KeyPair() {
+  return crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+}
+
+async function exportRawKey(key) {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return new Uint8Array(raw);
+}
+
+async function importX25519PublicKey(bytes) {
+  return crypto.subtle.importKey('raw', bytes, { name: 'X25519' }, false, []);
+}
+
+async function ecdhX25519(myPriv, theirPub) {
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'X25519', public: theirPub },
+    myPriv,
+    256
+  );
+  return new Uint8Array(bits);
+}
+
+async function generateEd25519KeyPair() {
+  return crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign']);
+}
+
+async function exportRawEd25519PublicKey(key) {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  return new Uint8Array(raw);
+}
+
+async function ed25519Sign(priv, data) {
+  const sig = await crypto.subtle.sign({ name: 'Ed25519' }, priv, data);
+  return new Uint8Array(sig);
+}
+
+// HKDF: nil salt in Go → RFC 5869 default → 32 zero bytes
+async function hkdfDerive(sharedSecret, infoStr, lenBytes) {
+  const hkdfKey = await crypto.subtle.importKey(
+    'raw', sharedSecret, { name: 'HKDF' }, false, ['deriveBits']
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new Uint8Array(32),
+      info: new TextEncoder().encode(infoStr),
+    },
+    hkdfKey,
+    lenBytes * 8
+  );
+  return new Uint8Array(bits);
+}
+
+// Returns nonce(12) || ciphertext+tag
+async function aesGcmEncrypt(keyBytes, plaintext) {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, plaintext);
+  return concatBytes(nonce, new Uint8Array(ciphertext));
+}
+
+// Expects nonce(12) || ciphertext+tag
+async function aesGcmDecrypt(keyBytes, nonceAndCiphertext) {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const nonce = nonceAndCiphertext.slice(0, 12);
+  const ciphertext = nonceAndCiphertext.slice(12);
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ciphertext);
+  return new Uint8Array(plaintext);
+}
+
+// RFC3339 without milliseconds — Go uses time.RFC3339, not time.RFC3339Nano
+function currentRFC3339() {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+// ── C. Protocol logic ─────────────────────────────────────────────────────────
+
+let receiverState = null;
+
+async function receiverInit() {
+  const dhPair = await generateX25519KeyPair();
+  const sigPair = await generateEd25519KeyPair();
+  const dhPub = await exportRawKey(dhPair.publicKey);
+  const sigPub = await exportRawEd25519PublicKey(sigPair.publicKey);
+  const initialCode = concatBytes(dhPub, sigPub); // 64 bytes
+  receiverState = { dhPriv: dhPair.privateKey, sigPriv: sigPair.privateKey };
+  return initialCode;
+}
+
+async function receiverRetrieve(ownerCodeBytes) {
+  const ownerDhPub = ownerCodeBytes.slice(0, 32);
+  const challenge = ownerCodeBytes.slice(32, 48);
+
+  const ownerPubKey = await importX25519PublicKey(ownerDhPub);
+  const sharedSecret = await ecdhX25519(receiverState.dhPriv, ownerPubKey);
+
+  const secretID = await hkdfDerive(sharedSecret, 'seshador/v1/hkdf/info/secret-id', 32);
+  const encKey = await hkdfDerive(sharedSecret, 'seshador/v1/hkdf/info/encryption-key', 32);
+
+  const ts = currentRFC3339();
+  const msg = concatBytes(
+    new TextEncoder().encode('retrieve'),
+    secretID,
+    challenge,
+    new TextEncoder().encode(ts)
+  );
+  const sig = await ed25519Sign(receiverState.sigPriv, msg);
+
+  const encData = await apiRetrieve(getVaultBase(), secretID, msg, sig);
+  const plaintext = await aesGcmDecrypt(encKey, encData);
+  return new TextDecoder().decode(plaintext);
+}
+
+async function ownerShare(receiverCodeBytes, secretText) {
+  const recDhPub = receiverCodeBytes.slice(0, 32);
+  const recSigPub = receiverCodeBytes.slice(32, 64);
+
+  const dhPair = await generateX25519KeyPair();
+  const recPubKey = await importX25519PublicKey(recDhPub);
+  const sharedSecret = await ecdhX25519(dhPair.privateKey, recPubKey);
+
+  const secretID = await hkdfDerive(sharedSecret, 'seshador/v1/hkdf/info/secret-id', 32);
+  const encKey = await hkdfDerive(sharedSecret, 'seshador/v1/hkdf/info/encryption-key', 32);
+
+  const plaintext = new TextEncoder().encode(secretText);
+  const ciphertext = await aesGcmEncrypt(encKey, plaintext);
+
+  const challenge = await apiStore(getVaultBase(), secretID, ciphertext, recSigPub);
+
+  const dhPub = await exportRawKey(dhPair.publicKey);
+  return concatBytes(dhPub, challenge); // 48 bytes
+}
+
+// ── D. API client ─────────────────────────────────────────────────────────────
+
+function getVaultBase() {
+  return window.location.origin;
+}
+
+async function apiStore(base, secretID, encSecret, recSigPub) {
+  const body = {
+    secret_id: b64Encode(secretID),
+    encrypted_secret: b64Encode(encSecret),
+    receiver_public_key: b64Encode(recSigPub),
+  };
+  const resp = await fetch(`${base}/secrets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`Store failed (${resp.status})${text ? ': ' + text : ''}`);
+  }
+  const data = await resp.json();
+  return b64Decode(data.challenge);
+}
+
+async function apiRetrieve(base, secretID, msg, sig) {
+  // URLSearchParams percent-encodes '=' in base64url values
+  const params = new URLSearchParams({ msg: b64Encode(msg), sig: b64Encode(sig) });
+  const secretIDStr = encodeURIComponent(b64Encode(secretID));
+  const resp = await fetch(`${base}/secrets/${secretIDStr}?${params}`);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`Retrieve failed (${resp.status})${text ? ': ' + text : ''}`);
+  }
+  const data = await resp.json();
+  return b64Decode(data.encrypted_secret);
+}
+
+// ── E. UI controller ──────────────────────────────────────────────────────────
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showStep(screenId, stepId) {
+  document.querySelectorAll(`#${screenId} .step`).forEach(s => s.classList.remove('active'));
+  document.getElementById(stepId).classList.add('active');
+}
+
+function setStatus(id, msg, type = '') {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status' + (type ? ' ' + type : '');
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn._origText = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span>Working…';
+    btn.disabled = true;
+  } else {
+    btn.textContent = btn._origText || btn.textContent;
+    btn.disabled = false;
+  }
+}
+
+function wireCopyButton(btn) {
+  btn.addEventListener('click', async () => {
+    const targetId = btn.dataset.copy;
+    const text = document.getElementById(targetId).value;
+    try {
+      await navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    } catch {
+      btn.textContent = 'Error';
+    }
+  });
+}
+
+async function init() {
+  // Check for secure context + Web Crypto support
+  if (!window.isSecureContext || !crypto?.subtle) {
+    showScreen('screen-error');
+    return;
+  }
+
+  // Wire copy buttons
+  document.querySelectorAll('[data-copy]').forEach(wireCopyButton);
+
+  // Landing buttons
+  document.getElementById('btn-go-share').addEventListener('click', () => {
+    showScreen('screen-share');
+    showStep('screen-share', 'share-step-1');
+    document.getElementById('share-status').textContent = '';
+  });
+
+  document.getElementById('btn-go-receive').addEventListener('click', async () => {
+    showScreen('screen-receive');
+    showStep('screen-receive', 'receive-step-1');
+    try {
+      const code = await receiverInit();
+      document.getElementById('receive-initial-code').value = b64Encode(code);
+    } catch (e) {
+      // Shouldn't happen, but fall back gracefully
+      showScreen('screen-landing');
+      alert('Failed to generate keys: ' + e.message);
+    }
+  });
+
+  // Share back
+  document.getElementById('share-back').addEventListener('click', () => showScreen('screen-landing'));
+
+  // Share step 1: submit
+  document.getElementById('btn-share-submit').addEventListener('click', async () => {
+    const receiverCodeStr = document.getElementById('share-receiver-code').value.trim();
+    const secretText = document.getElementById('share-secret-text').value;
+
+    if (!receiverCodeStr) {
+      setStatus('share-status', 'Please enter the receiver\'s code.', 'error');
+      return;
+    }
+    if (!secretText) {
+      setStatus('share-status', 'Please enter a secret.', 'error');
+      return;
+    }
+
+    let receiverCodeBytes;
+    try {
+      receiverCodeBytes = b64Decode(receiverCodeStr);
+    } catch {
+      setStatus('share-status', 'Invalid receiver code (could not decode).', 'error');
+      return;
+    }
+    if (receiverCodeBytes.length !== 64) {
+      setStatus('share-status', `Invalid receiver code (expected 64 bytes, got ${receiverCodeBytes.length}).`, 'error');
+      return;
+    }
+
+    setLoading('btn-share-submit', true);
+    setStatus('share-status', '');
+    try {
+      const ownerCode = await ownerShare(receiverCodeBytes, secretText);
+      document.getElementById('share-owner-code').value = b64Encode(ownerCode);
+      document.getElementById('share-receiver-code').value = '';
+      document.getElementById('share-secret-text').value = '';
+      showStep('screen-share', 'share-step-2');
+    } catch (e) {
+      setStatus('share-status', e.message, 'error');
+    } finally {
+      setLoading('btn-share-submit', false);
+    }
+  });
+
+  // Receive back
+  document.getElementById('receive-back').addEventListener('click', () => showScreen('screen-landing'));
+  document.getElementById('btn-receive-back2').addEventListener('click', () => {
+    showStep('screen-receive', 'receive-step-1');
+    setStatus('receive-status', '');
+  });
+
+  // Receive step 1 → step 2
+  document.getElementById('btn-receive-next').addEventListener('click', () => {
+    showStep('screen-receive', 'receive-step-2');
+    setStatus('receive-status', '');
+  });
+
+  // Receive step 2: retrieve
+  document.getElementById('btn-receive-submit').addEventListener('click', async () => {
+    const ownerCodeStr = document.getElementById('receive-owner-code').value.trim();
+
+    if (!ownerCodeStr) {
+      setStatus('receive-status', 'Please enter the owner\'s code.', 'error');
+      return;
+    }
+
+    let ownerCodeBytes;
+    try {
+      ownerCodeBytes = b64Decode(ownerCodeStr);
+    } catch {
+      setStatus('receive-status', 'Invalid owner code (could not decode).', 'error');
+      return;
+    }
+    if (ownerCodeBytes.length !== 48) {
+      setStatus('receive-status', `Invalid owner code (expected 48 bytes, got ${ownerCodeBytes.length}).`, 'error');
+      return;
+    }
+
+    setLoading('btn-receive-submit', true);
+    setStatus('receive-status', '');
+    try {
+      const secret = await receiverRetrieve(ownerCodeBytes);
+      document.getElementById('receive-secret-text').value = secret;
+      showStep('screen-receive', 'receive-step-3');
+    } catch (e) {
+      setStatus('receive-status', e.message, 'error');
+    } finally {
+      setLoading('btn-receive-submit', false);
+    }
+  });
+
+  showScreen('screen-landing');
+}
+
+init();
+</script>
+</body>
+</html>
