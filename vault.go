@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
@@ -76,7 +77,7 @@ func (v *Vault) RetrieveSecret(secretID, msg, sig []byte) ([]byte, error) {
 
 	messageChallenge := msg[40:56]
 	messageChallengeHash := sha256.Sum256(messageChallenge)
-	if !bytes.Equal(messageChallengeHash[:], secretEntry.ChallengeHash) {
+	if subtle.ConstantTimeCompare(messageChallengeHash[:], secretEntry.ChallengeHash) != 1 {
 		return nil, errors.New("invalid challenge value")
 	}
 
