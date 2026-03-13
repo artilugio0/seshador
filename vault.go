@@ -2,7 +2,6 @@ package seshador
 
 import (
 	"bytes"
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -39,17 +38,11 @@ func (v *Vault) StoreSecret(secretID, recPub, encryptedSecret []byte) ([]byte, e
 
 	challengeHash := sha256.Sum256(challenge)
 
-	curve := ecdh.X25519()
-	receiverPubKey, err := curve.NewPublicKey(recPub)
-	if err != nil {
-		return nil, fmt.Errorf("invalid public key: %w", err)
-	}
-
 	secretEntry := SecretEntry{
 		Expiration:      time.Now().Add(24 * time.Hour),
 		ChallengeHash:   challengeHash[:],
 		EncryptedSecret: encryptedSecret,
-		ReceiverPubKey:  receiverPubKey.Bytes(),
+		ReceiverPubKey:  recPub, // raw Ed25519 pub key bytes; length already validated by caller
 	}
 
 	secretIDHash := sha256.Sum256(secretID)
